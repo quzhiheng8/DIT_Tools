@@ -23,7 +23,7 @@ def calculate_hash(file_path, hash_type):
         return str(e)
 
 # 创建拷贝和哈希校验函数
-def copy_and_hash_with_progress(src_folder, dest_folder, hash_type):
+def copy_and_hash_with_progress(src_folder, dest_folders, hash_type):
     try:
         total_files = 0
         copied_files = 0
@@ -32,8 +32,9 @@ def copy_and_hash_with_progress(src_folder, dest_folder, hash_type):
             for file in files:
                 total_files += 1
                 src_file = os.path.join(root_dir, file)
-                dest_file = os.path.join(dest_folder, os.path.basename(src_folder), os.path.relpath(src_file, src_folder))
-                file_list.append((src_file, dest_file))
+                for dest_folder in dest_folders:
+                    dest_file = os.path.join(dest_folder, os.path.basename(src_folder), os.path.relpath(src_file, src_folder))
+                    file_list.append((src_file, dest_file))
 
         if total_files == 0:
             result_label.config(text="没有文件需要拷贝", fg="blue")
@@ -54,11 +55,11 @@ def copy_and_hash_with_progress(src_folder, dest_folder, hash_type):
         if continue_copy:
             # 拷贝完成后，用橙色字显示"拷贝完成，下面进行校验"
             result_label.config(text="拷贝完成，正在进行校验", fg="orange")
-            verify_hash(src_folder, dest_folder, hash_type)
+            verify_hash(src_folder, dest_folders, hash_type)
     except Exception as e:
         result_label.config(text=f"Error: {str(e)}", fg="red")
 
-def verify_hash(src_folder, dest_folder, hash_type):
+def verify_hash(src_folder, dest_folders, hash_type):
     try:
         total_files = 0
         hashed_files = 0
@@ -73,12 +74,13 @@ def verify_hash(src_folder, dest_folder, hash_type):
         for root_dir, _, files in os.walk(src_folder):
             for file in files:
                 src_file = os.path.join(root_dir, file)
-                dest_file = os.path.join(dest_folder, os.path.basename(src_folder), os.path.relpath(src_file, src_folder))
-                if calculate_hash(src_file, hash_type) != calculate_hash(dest_file, hash_type):
-                    result_label.config(text="校验失败，请删除拷贝文件并重新进行拷贝", fg="red")
-                    copy_button.config(text="重置")
-                    copy_button.config(command=reset_application)
-                    return
+                for dest_folder in dest_folders:
+                    dest_file = os.path.join(dest_folder, os.path.basename(src_folder), os.path.relpath(src_file, src_folder))
+                    if calculate_hash(src_file, hash_type) != calculate_hash(dest_file, hash_type):
+                        result_label.config(text="校验失败，请删除拷贝文件并重新进行拷贝", fg="red")
+                        copy_button.config(text="重置")
+                        copy_button.config(command=reset_application)
+                        return
                 hashed_files += 1
                 progress_var.set(int(hashed_files / total_files * 100))
         result_label.config(text="校验成功", fg="green")
@@ -89,7 +91,8 @@ def verify_hash(src_folder, dest_folder, hash_type):
 
 def reset_application():
     source_entry.delete(0, "end")
-    destination_entry.delete(0, "end")
+    for entry in destination_entries:
+        entry.delete(0, "end")
     hash_type_var.set("MD5")
     result_label.config(text="", fg="green")
     progress_var.set(0)
@@ -108,10 +111,10 @@ def start_copy_thread():
         copy_button.config(text="暂停")
         progress_bar["style"] = "Green.TProgressbar"
         source_folder = source_entry.get()
-        dest_folder = destination_entry.get()
+        dest_folders = [entry.get() for entry in destination_entries if entry.get()]
         hash_type = hash_type_var.get()
         progress_var.set(0)
-        threading.Thread(target=copy_and_hash_with_progress, args=(source_folder, dest_folder, hash_type)).start()
+        threading.Thread(target=copy_and_hash_with_progress, args=(source_folder, dest_folders, hash_type)).start()
 
 continue_copy = False
 
@@ -130,8 +133,10 @@ def select_source_folder():
 # 创建函数以选择目标文件夹
 def select_destination_folder():
     dest_folder = filedialog.askdirectory()
-    destination_entry.delete(0, "end")
-    destination_entry.insert(0, dest_folder)
+    entry = tk.Entry(root)
+    entry.insert(0, dest_folder)
+    entry.pack()
+    destination_entries.append(entry)
 
 source_button = tk.Button(root, text="选择文件夹", command=select_source_folder)
 source_button.pack()
@@ -139,8 +144,7 @@ source_button.pack()
 destination_label = tk.Label(root, text="目标文件夹:")
 destination_label.pack()
 
-destination_entry = tk.Entry(root)
-destination_entry.pack()
+destination_entries = []
 
 destination_button = tk.Button(root, text="选择文件夹", command=select_destination_folder)
 destination_button.pack()
